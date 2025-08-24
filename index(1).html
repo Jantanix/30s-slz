@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>30 Seconds</title>
+<style>
+:root { --bg:#0f172a; --fg:#e2e8f0; --accent:#22c55e; --muted:#94a3b8; }
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--bg); color:var(--fg);
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+}
+.container{width:min(900px,92vw); text-align:center;}
+.card{
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:20px; padding:2rem;
+  box-shadow:0 10px 30px rgba(0,0,0,.4);
+}
+.hidden{display:none}
+h1{margin:0 0 1rem; letter-spacing:.3px}
+.btn{
+  font-size:clamp(18px,2.2vw,26px); padding:1rem 2rem;
+  border:0; border-radius:16px; background:var(--accent); color:#0a0a0a; cursor:pointer;
+}
+.btn:disabled{opacity:.6; cursor:not-allowed}
+#timer{font-variant-numeric:tabular-nums; font-size:clamp(36px,6vw,64px); margin:0 0 1rem}
+#words{list-style:none; padding:0; margin:1rem 0 0; display:grid; gap:.6rem}
+#words li{
+  font-size:clamp(22px,3vw,34px); padding:.4rem .8rem;
+  background:rgba(255,255,255,.06); border-radius:12px;
+}
+
+/* Overlay als rechter Streifen, damit Begriffe frei bleiben */
+.overlay{
+  position:fixed; inset:0; display:none;
+}
+.overlay .modal{
+  position:absolute; right:1rem; top:1rem; bottom:1rem;
+  width:min(360px, 42vw);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(15,23,42,.92);
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:16px;
+  box-shadow:0 20px 40px rgba(0,0,0,.5);
+  padding:1.5rem;
+  text-align:center;
+}
+.overlay h2{font-size:clamp(28px,4vw,48px); margin:0 0 1rem}
+.footer{margin-top:1rem; color:var(--muted); font-size:14px}
+</style>
+</head>
+<body>
+  <div class="container">
+    <div id="menu" class="card">
+      <h1>30 Seconds</h1>
+      <p class="footer">Tippe auf „Start“, du erhältst 5 Begriffe und 30&nbsp;Sekunden Zeit.</p>
+      <button id="startBtn" class="btn">Start</button>
+    </div>
+
+    <div id="game" class="card hidden" role="region" aria-label="Spielbereich">
+      <div id="timer" aria-live="assertive">30</div>
+      <ul id="words"></ul>
+    </div>
+  </div>
+
+  <div id="overlay" class="overlay" aria-modal="true" role="dialog">
+    <div class="modal card">
+      <h2>Zeit abgelaufen</h2>
+      <button id="nextBtn" class="btn">Weiter</button>
+      <p class="footer">Die Begriffe bleiben links vollständig sichtbar.</p>
+    </div>
+  </div>
+
+<script>
+// === Begriffe aus deiner CSV (inkl. Duplikaten beibehalten) ===
+const WORDS = [
+  "See",
+  "Energie",
+  "Familie",
+  "Fußball",
+  "Energie",
+  "Schule",
+  "Frieden",
+  "Peter Pan",
+  "Spielzeug",
+  "Slowakei",
+  "Finnland",
+  "Reiten",
+  "Auto",
+  "Elvis Presley",
+  "Berlin",
+  "Melbourne",
+  "Ed Sheeran",
+  "Vergangenheit",
+  "Blumen",
+  "Shakira",
+  "Google",
+  "Batman",
+  "Harry Potter",
+  "Champions League",
+  "Demokratie",
+  "Frieden",
+  "Lady Gaga",
+  "Wonder Woman",
+  "Oprah Winfrey",
+  "Politik",
+  "Samsung",
+  "Regierung",
+  "Wald",
+  "König",
+  "Schwester",
+  "Sherlock Holmes",
+  "Blumen",
+  "Bäume",
+  "Donald Duck",
+  "Kerzenlicht",
+  "Polen",
+  "Snowboarden",
+  "Helmut Schmidt",
+  "Telefon",
+  "Vergangenheit",
+  "Bastian Schweinsteiger",
+  "Bäume",
+  "Sterne",
+  "Adidas",
+  "Wolken",
+  "Kinder",
+  "Kinder",
+  "Regen",
+  "Lufthansa",
+  "Amazon",
+  "Athen",
+  "Strom",
+  "Nachbarn",
+  "Regen",
+  "Feuer",
+  "Kerzenlicht",
+  "Künstler",
+  "Feuer",
+  "See",
+  "Coca-Cola",
+  "Karate",
+  "Politik",
+  "Sommer",
+  "Wald",
+  "Leipzig",
+  "New York",
+  "Frühling",
+  "Pizza",
+  "Wolken",
+  "Kylie Jenner",
+  "Bill Gates",
+  "McDonald's",
+  "Soldat",
+  "Buenos Aires",
+  "Stuttgart",
+  "Mond",
+  "Geschichte",
+  "Mond",
+  "Bruder",
+  "Berge",
+  "Südafrika",
+  "Rapunzel",
+  "Onkel",
+  "Kuchen",
+  "London",
+  "Himmel",
+  "König",
+  "Bruder",
+  "Großeltern",
+  "Marvel",
+  "Bruder",
+  "Wasser",
+  "Wahlen",
+  "Fahrrad",
+  "Mond",
+  "Peking",
+  "Bangkok",
+  "Arzt",
+  "Blumen",
+  "Universität",
+  "Wimbledon",
+  "Großeltern",
+  "Basketball",
+  "Wahlen",
+  "Demokratie",
+  "Pinocchio",
+  "Blumen",
+  "Radio",
+  "Freundschaft",
+  "Insel",
+  "Helene Fischer",
+  "Winter",
+  "Kühlschrank",
+  "Avengers",
+  "Regenschirm",
+  "Ungarn",
+  "Energie",
+  "Russland",
+  "Tour de France",
+  "Microsoft",
+  "Feuer",
+  "Meer",
+  "Prinzessin",
+  "Wald",
+  "Iron Man",
+  "TikTok",
+  "Geld",
+  "Katze",
+  "Fluss",
+  "Tante",
+  "Flugzeug",
+  "Insel",
+  "Insel",
+  "Simpsons",
+  "Michael Jackson",
+  "Mickey Mouse",
+  "Österreich",
+  "Himmel",
+  "Demokratie",
+  "Königin",
+  "Königin",
+  "Volkswagen",
+  "Schwimmen",
+  "Zukunft",
+  "Sonne",
+  "Meer",
+  "Freundschaft",
+  "Lehrer",
+  "Sommer",
+  "Strand",
+  "Liebe",
+  "Game of Thrones",
+  "Warschau",
+  "Prinzessin",
+  "Pokémon",
+  "Großeltern",
+  "Albert Einstein",
+  "Bier",
+  "Frozen",
+  "Facebook",
+  "Burger King",
+  "Fluss",
+  "Strom",
+  "Eltern",
+  "Moskau",
+  "Meer",
+  "Nike",
+  "Istanbul",
+  "Herbst",
+  "WhatsApp",
+  "BMW",
+  "Judo",
+  "Energie",
+  "Wald",
+  "Berge",
+  "Eis",
+  "Bäume",
+  "Bruder",
+  "Prinzessin",
+  "Geschichte",
+  "Dalai Lama",
+  "Wüste",
+  "Sommer",
+  "Parlament",
+  "Tür",
+  "Sterne",
+  "Feuerwehr",
+  "Sommer",
+  "Pepsi",
+  "Superman",
+  "Liebe",
+  "Kaffeemaschine",
+  "Cristiano Ronaldo",
+  "Strom",
+  "Liebe",
+  "Geschichte",
+  "Strom",
+  "Onkel",
+  "Herbst",
+  "Apple",
+  "IKEA",
+  "Starbucks",
+  "Regierung",
+  "Sänger",
+  "Meer",
+  "Onkel",
+  "Island",
+  "Energie",
+  "Königin",
+  "Hamburg",
+  "Strand",
+  "Indien",
+  "Sterne",
+  "Lego",
+  "Rotkäppchen",
+  "Taekwondo",
+  "Zukunft",
+  "Tesla",
+  "Sterne",
+  "Krieg",
+  "Kapstadt",
+  "Tschechien",
+  "Dschungel",
+  "Kinder",
+  "Großeltern",
+  "Brasilien",
+  "Steffi Graf",
+  "Vergangenheit",
+  "Prinz",
+  "Wahlen",
+  "Freundschaft",
+  "Xbox",
+  "Kanada",
+  "Frühling",
+  "Politik",
+  "Familie",
+  "Sonne",
+  "Lissabon",
+  "Wolken",
+  "Onkel",
+  "Zeitung",
+  "Frühling",
+  "Krankenhaus",
+  "Motorradrennen",
+  "Brille",
+  "Golf",
+  "Cinderella",
+  "Wüste",
+  "Sonne",
+  "Schwester",
+  "Dschungel",
+  "Köln",
+  "Strand",
+  "Taylor Swift",
+  "Krieg",
+  "Segeln",
+  "Herbst",
+  "China",
+  "Kerzenlicht",
+  "Bäume",
+  "Mexiko",
+  "Strand",
+  "Fluss",
+  "Sommer",
+  "Tante",
+  "Dschungel",
+  "Eltern",
+  "Surfen",
+  "DC Comics",
+  "Sonne",
+  "Krieg",
+  "Tante",
+  "Kerze",
+  "Parlament",
+  "Herbst",
+  "Stuhl",
+  "Prag",
+  "Tante",
+  "Schweden",
+  "Puma",
+  "James Bond",
+  "Wolken",
+  "Himmel",
+  "Dracula",
+  "Prinz",
+  "Königin",
+  "Lampe",
+  "Wolken",
+  "Parlament",
+  "Geschichte",
+  "Mond",
+  "Prinz",
+  "Krieg",
+  "See",
+  "Vergangenheit",
+  "Bruce Willis",
+  "Wahlen",
+  "Dirk Nowitzki",
+  "Justin Bieber",
+  "Schwester",
+  "Kinder",
+  "Blumen",
+  "Mercedes",
+  "Zukunft",
+  "Wüste",
+  "Zukunft",
+  "Insel",
+  "Brüder Grimm",
+  "Demokratie",
+  "Freundschaft",
+  "Supermarkt",
+  "Handball",
+  "Fernseher",
+  "Regierung",
+  "Usain Bolt",
+  "Formel 1",
+  "San Francisco",
+  "Eishockey",
+  "Prinz",
+  "Frieden",
+  "Frühling",
+  "Frieden",
+  "Wein",
+  "Zukunft",
+  "Regen",
+  "Aschenputtel",
+  "Prinz",
+  "Schwester",
+  "Seoul",
+  "Nachbarn",
+  "Audi",
+  "Bruder",
+  "Politik",
+  "NBA",
+  "Strom",
+  "Berge",
+  "Nachbarn",
+  "Liebe",
+  "König",
+  "Kerze",
+  "Großeltern",
+  "Parlament",
+  "Liebe",
+  "Fenster",
+  "Paris",
+  "Pixar",
+  "Angela Lansbury",
+  "Prinzessin",
+  "Fluss",
+  "Ägypten",
+  "Politik",
+  "Wüste",
+  "Tante",
+  "Olympia",
+  "Playmobil",
+  "Super Bowl",
+  "Japan",
+  "Los Angeles",
+  "Himmel",
+  "Onkel",
+  "Tennis",
+  "Vogel",
+  "Madrid",
+  "Spider-Man",
+  "Geschichte",
+  "Kerze",
+  "König",
+  "König",
+  "Sterne",
+  "Sportler",
+  "Star Wars",
+  "Königin",
+  "Eltern",
+  "Bäume",
+  "Regierung",
+  "Strand",
+  "Kerze",
+  "Johnny Depp",
+  "Boxen",
+  "NFL",
+  "Leonardo DiCaprio",
+  "Wüste",
+  "Kinder",
+  "Bundesliga",
+  "Adele",
+  "Fluss",
+  "Mond",
+  "Berge",
+  "Frankfurt",
+  "Skifahren",
+  "Familie",
+  "See",
+  "Bank",
+  "See",
+  "München",
+  "Berge",
+  "Winter",
+  "Parlament",
+  "Kerze",
+  "Sydney",
+  "Familie",
+  "Tisch",
+  "Himmel",
+  "Frühling",
+  "Krieg",
+  "Kerzenlicht",
+  "Eltern",
+  "Instagram",
+  "Insel",
+  "Leichtathletik",
+  "Disney",
+  "Vergangenheit",
+  "Angela Merkel",
+  "Winter",
+  "Wahlen",
+  "Wald",
+  "Sonne",
+  "Internet",
+  "Klettern",
+  "Kerze",
+  "Polizist",
+  "Dresden",
+  "Winter",
+  "Dschungel",
+  "Buch",
+  "Regen",
+  "Tokio",
+  "Rom",
+  "Meer",
+  "Eltern",
+  "Schokolade",
+  "Greta Thunberg",
+  "Hund",
+  "Zug",
+  "Computer",
+  "Lionel Messi",
+  "Familie",
+  "Freundschaft",
+  "Herbst",
+  "Barack Obama",
+  "Dschungel",
+  "Breaking Bad",
+  "Schach",
+  "Sony",
+  "Norwegen",
+  "Brief",
+  "Demokratie",
+  "Frieden",
+  "Rio de Janeiro",
+  "Feuer",
+  "Schweiz",
+  "Feuer",
+  "Prinzessin",
+  "Regierung",
+  "Winter",
+  "Kerzenlicht",
+  "Nachbarn",
+  "Marathon",
+  "Schwester",
+  "Beatles",
+  "Herr der Ringe",
+  "Regen",
+  "George Clooney",
+  "PlayStation",
+  "Nachbarn",
+  "Nintendo",
+  "Drucker",
+  "Ananas",
+  "Wurst",
+  "Mehl",
+  "Giraffe",
+  "Kirsche",
+  "Eisbär",
+  "Drucker",
+  "Ente",
+  "Mehl",
+  "Schlange",
+  "Maus",
+  "Apfel",
+  "Eiche",
+  "Scanner",
+  "Zucker",
+  "Reis",
+  "Ananas",
+  "Zucker",
+  "Fisch",
+  "Gurke",
+  "Erdbeere",
+  "Birke",
+  "Kirsche",
+  "Gans",
+  "Pinguin",
+  "Gurke",
+  "Pflaume",
+  "Krokodil",
+  "Christian Lindner",
+  "Darth Vader",
+  "ChatGPT"
+];
+
+// Einstellungen
+const COUNT = 5;     // Anzahl Begriffe pro Runde
+const DURATION = 30; // Sekunden pro Runde
+
+// UI-Referenzen
+const menu     = document.getElementById('menu');
+const game     = document.getElementById('game');
+const startBtn = document.getElementById('startBtn');
+const wordsUl  = document.getElementById('words');
+const timerEl  = document.getElementById('timer');
+const overlay  = document.getElementById('overlay');
+const nextBtn  = document.getElementById('nextBtn');
+
+// Zustand
+let remaining = DURATION;
+let tick = null;
+
+// Web Audio: einmalige Initialisierung bei Nutzerinteraktion
+let audioCtx = null;
+function initAudio() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new Ctx();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function playBeep(f=880, dur=0.25) {
+  if (!audioCtx) return;
+  const t0 = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(f, t0);
+  // kleine Hüllkurve gegen Klicken
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.linearRampToValueAtTime(0.25, t0 + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + dur + 0.05);
+}
+
+function sampleUnique(arr, n){
+  if(n > arr.length) throw new Error('Zu wenige Begriffe im WORDS-Array.');
+  const copy = arr.slice();
+  for(let i = copy.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
+}
+
+function renderWords(list){
+  wordsUl.innerHTML = '';
+  list.forEach(w => {
+    const li = document.createElement('li');
+    li.textContent = w;
+    wordsUl.appendChild(li);
+  });
+}
+
+function show(el){ el.classList.remove('hidden'); }
+function hide(el){ el.classList.add('hidden'); }
+
+function startRound(){
+  initAudio(); // sichert Audio-Autorisierung durch Nutzerinteraktion
+  try{
+    renderWords(sampleUnique(WORDS, COUNT));
+  }catch(e){
+    alert(e.message);
+    return;
+  }
+  remaining = DURATION;
+  timerEl.textContent = String(remaining);
+  hide(menu);
+  show(game);
+
+  clearInterval(tick);
+  tick = setInterval(() => {
+    remaining -= 1;
+    timerEl.textContent = String(remaining);
+    if(remaining <= 0){
+      clearInterval(tick);
+      timerEl.textContent = '0';
+      overlay.style.display = 'block'; // rechter Streifen sichtbar
+      playBeep(); // Hinweiston
+    }
+  }, 1000);
+}
+
+function resetToMenu(){
+  overlay.style.display = 'none';
+  hide(game);
+  remaining = DURATION;
+  timerEl.textContent = String(DURATION);
+  show(menu);
+}
+
+startBtn.addEventListener('click', startRound);
+nextBtn.addEventListener('click', resetToMenu);
+
+// Escape schließt das Overlay (optional für Tastatur)
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape' && overlay.style.display === 'block') resetToMenu();
+});
+</script>
+</body>
+</html>
